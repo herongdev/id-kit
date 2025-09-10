@@ -1,0 +1,87 @@
+<template>
+	<view class="wrapper">
+		<view class="actions">
+			<button type="primary" @click="onConsent" :disabled="consent || loading">{{ consent ? '已同意' : '同意并初始化' }}</button>
+			<button @click="onGetBest" :disabled="!consent || loading">获取最佳ID</button>
+		</view>
+		<view class="result" v-if="hasResult">
+			<text>来源：{{result.source}}</text>
+			<text>可用：{{result.available}}</text>
+			<text v-if="result.hash">哈希：{{result.hash}}</text>
+			<text v-if="result.value">原值：{{result.value}}</text>
+			<text v-if="result.message">说明：{{result.message}}</text>
+		</view>
+	</view>
+</template>
+
+<script>
+	import { register, setSalt, getBestId } from "@/uni_modules/id-kit"
+	export default {
+		data() {
+			return {
+				consent: false,
+				loading: false,
+				hasResult: false,
+				result: {} as UTSJSONObject
+			}
+		},
+		onLoad() {
+
+		},
+		methods: {
+			async onConsent() {
+				this.loading = true
+				try {
+					await register()
+					setSalt("demo-salt")
+					this.consent = true
+					uni.showToast({ title: "已同意" })
+				} catch (e) {
+					uni.showToast({ title: "初始化失败", icon: "none" })
+				} finally {
+					this.loading = false
+				}
+			},
+			async onGetBest() {
+				this.loading = true
+				try {
+					const r = await getBestId({ exposeRaw: false })
+					this.result = r as UTSJSONObject
+					this.hasResult = true
+				} catch (e) {
+					this.result = {
+						"available": false,
+						"source": "unknown",
+						"message": String(e),
+						"hash": "",
+						"value": ""
+					} as UTSJSONObject
+					this.hasResult = true
+				} finally {
+					this.loading = false
+				}
+			}
+		}
+	}
+</script>
+
+<style lang="scss">
+	.wrapper {
+		padding: 24rpx;
+		display: flex;
+		justify-content: center;
+
+	}
+
+	.logo {
+		height: 100px;
+		width: 100px;
+		margin: 100px auto 25px auto;
+	}
+
+	.title {
+		font-size: 18px;
+		color: #8f8f94;
+		text-align: center;
+	}
+</style>

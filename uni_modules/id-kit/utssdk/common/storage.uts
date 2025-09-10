@@ -1,0 +1,16 @@
+export function get(key : string) : string | null {
+	try {
+		// @ts-ignore
+		const value = uni.getStorageSync(key);
+		return value != null && value != "" ? value as string : null;
+	} catch {
+		return null;
+	}
+}
+
+export function set(key : string, val : string) {
+	try {
+		// @ts-ignore
+		uni.setStorageSync(key, val);
+	} catch { }
+}

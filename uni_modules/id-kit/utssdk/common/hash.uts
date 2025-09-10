@@ -1,0 +1,12 @@
+// Web 有 crypto.subtle；原生侧建议用平台 API（Android 代码里换成 MessageDigest；iOS 侧可换 CommonCrypto）
+export async function sha256Hex(input: string): Promise<string> {
+  // #ifdef H5
+  // @ts-ignore
+  const g: any = globalThis;
+  if (g && g.crypto && g.crypto.subtle) {
+    const buf = await g.crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  // #endif
+  return input; // 非H5先返回原文；Android/iOS在各自实现中用系统哈希
+}

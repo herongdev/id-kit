@@ -1,0 +1,48 @@
+function toHex(): string[] {
+  const h: string[] = []; for (let i=0;i<256;i++) h[i] = (i+0x100).toString(16).substring(1);
+  return h;
+}
+function formatUuid(b: Uint8Array): string {
+  b[6] = (b[6] & 0x0f) | 0x40; // version=4
+  b[8] = (b[8] & 0x3f) | 0x80; // variant=10
+  const H = toHex();
+  return (
+    H[b[0]]+H[b[1]]+H[b[2]]+H[b[3]]+"-"+H[b[4]]+H[b[5]]+"-"+H[b[6]]+H[b[7]]+"-"+H[b[8]]+H[b[9]]+"-"+H[b[10]]+H[b[11]]+H[b[12]]+H[b[13]]+H[b[14]]+H[b[15]]
+  );
+}
+
+// #ifdef H5
+function getRandom16(): Uint8Array {
+  // @ts-ignore
+  const g: any = globalThis;
+  if (g && g.crypto && g.crypto.getRandomValues) return g.crypto.getRandomValues(new Uint8Array(16));
+  const a = new Uint8Array(16); for (let i=0;i<16;i++) a[i] = Math.floor(Math.random()*256); return a;
+}
+// #endif
+
+// #ifdef APP-ANDROID
+function getRandom16(): Uint8Array {
+  const sr = new java.security.SecureRandom(); // UTS 原生：直接 Java 类
+  const arr: number[] = new Array<number>(16);
+  for (let i=0;i<16;i++) arr[i] = sr.nextInt(256);
+  return new Uint8Array(arr);
+}
+// #endif
+
+// #ifdef APP-IOS
+// 使用 Security 的 SecRandomCopyBytes（UTS 映射到 Swift）
+function getRandom16(): Uint8Array {
+  const bytes = new Uint8Array(16);
+  // @ts-ignore
+  const ok = SecRandomCopyBytes(kSecRandomDefault, 16, bytes);
+  if (ok === 0) return bytes;
+  // 兜底 arc4random_buf
+  // @ts-ignore
+  arc4random_buf(bytes, 16);
+  return bytes;
+}
+// #endif
+
+export function uuid4(): string {
+  return formatUuid(getRandom16());
+}

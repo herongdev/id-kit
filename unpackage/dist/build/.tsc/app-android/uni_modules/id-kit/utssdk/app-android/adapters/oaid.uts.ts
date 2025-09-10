@@ -1,0 +1,56 @@
+
+import DeviceIdentifier from "com.github.gzuliyujiang.oaid.DeviceIdentifier"
+import DeviceID from "com.github.gzuliyujiang.oaid.DeviceID"
+import IGetter from "com.github.gzuliyujiang.oaid.IGetter"
+import Exception from "java.lang.Exception"
+
+// HMS（如引入 ads-identifier 依赖，可解除注释使用）
+// import AdvertisingIdClient from "com.huawei.hms.ads.identifier.AdvertisingIdClient"
+
+// MSA（如引入 oaid_sdk AAR，可解除注释使用）
+// import MdidSdkHelper from "com.bun.miitmdid.core.MdidSdkHelper"
+// import IIdentifierListener from "com.bun.miitmdid.interfaces.IIdentifierListener"
+// import IdSupplier from "com.bun.miitmdid.interfaces.IdSupplier"
+
+type OAIDResult = {
+	value ?: string;
+	limited ?: boolean;
+	source : 'HMS' | 'MSA' | 'GZU' | 'NONE';
+	message ?: string;
+}
+
+export async function getOAIDRaw(ctx : android.content.Context) : Promise<OAIDResult> {
+	// 1) 先尝试 HMS（如未集成可跳过）
+	try {
+		// const info = AdvertisingIdClient.getAdvertisingIdInfo(ctx)
+		// const id = info.getId(); if (id) return { value: id, limited: info.isLimitAdTrackingEnabled(), source: 'HMS' }
+	} catch { }
+
+	// 2) 再尝试 MSA 官方（如未集成可跳过）
+	// try {
+	//   return await new Promise((resolve) => {
+	//     MdidSdkHelper.InitSdk(ctx, true, new class implements IIdentifierListener {
+	//       override onSupport(supplier: IdSupplier | null) {
+	//         if (supplier && supplier.getOAID()!=null) resolve({ value: supplier.getOAID(), source:'MSA' })
+	//         else resolve({ source:'MSA', message:'supplier empty' })
+	//       }
+	//     })
+	//   })
+	// } catch {}
+
+	// 3) Android_CN_OAID：先同步，再异步兜底
+	try {
+		const id = DeviceIdentifier.getOAID(ctx) as string
+		if (id != '') return { value: id, source: 'GZU' }
+	} catch { }
+	try {
+		return await new Promise((resolve) => {
+			DeviceID.getOAID(ctx, new class implements IGetter {
+				override onOAIDGetComplete(result : string) { resolve({ value: result, source: 'GZU' }) }
+				override onOAIDGetError(error : Exception) { resolve({ source: 'NONE', message: ("" + error) }) }
+			})
+		})
+	} catch (e) {
+		return { source: 'NONE', message: ("" + e) }
+	}
+}

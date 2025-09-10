@@ -1,0 +1,86 @@
+import { IdCodesResult, IdValue } from "../common/types.uts";
+import { sha256Hex } from "../common/hash.uts";
+import { get, set } from "../common/storage.uts";
+import { uuid4 } from "../common/uuid.uts";
+
+let _consent = false;
+let _salt = "";
+let _cache: { ts: number; data: IdCodesResult } | null = null;
+
+async function build(
+  source: string,
+  value?: string,
+  exposeRaw?: boolean,
+  limited?: boolean,
+  msg?: string
+): Promise<IdValue> {
+  const available = value!==undefined;
+  const raw = exposeRaw ? value : undefined;
+  const hash = value ? await sha256Hex(value + _salt) : undefined;
+  return { value: raw, hash, available, limited, source, message: msg };
+}
+
+export async function register(
+  _: UTSJSONObject | null = null
+): Promise<UTSJSONObject> {
+  _consent = true;
+  return { consent: _consent } as UTSJSONObject;
+}
+export function setSalt(salt: string): void {
+  _salt = salt;
+}
+
+export async function getGuid(exposeRaw: boolean = false): Promise<IdValue> {
+  let guid = get("UNIIDKIT_GUID");
+  if (!guid) {
+    guid = `web:${uuid4()}`;
+    set("UNIIDKIT_GUID", guid);
+  }
+  return await build("guid", guid as string, exposeRaw);
+}
+export async function getAndroidId(): Promise<IdValue> {
+  return await build("androidId", undefined, false, false, "Web unsupported");
+}
+export async function getOAID(): Promise<IdValue> {
+  return await build("oaid", undefined, false, false, "Web unsupported");
+}
+export async function getAAID(): Promise<IdValue> {
+  return await build("aaid", undefined, false, false, "Web unsupported");
+}
+
+export async function getIdCodes(
+  options?: UTSJSONObject | null
+): Promise<IdCodesResult> {
+  const include = (options?.getArray<string>("include") || [
+    "guid",
+  ]) as string[];
+  const exposeRaw = (options?.getBoolean("exposeRaw") || false) as boolean;
+  const ttl = (options?.getNumber("ttlMs") || 24 * 3600 * 1000) as number;
+
+  if (_cache && Date.now() - _cache.ts < ttl) return _cache.data;
+
+  const res: IdCodesResult = {
+    consent: _consent,
+    ts: Date.now(),
+  } as IdCodesResult;
+  if (!_consent) {
+    res.guid = { available: false, source: "guid", message: "consent=false" };
+    return res;
+  }
+
+  if (include.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
+
+  res.best = res.guid?.available ? "guid" : null;
+  _cache = { ts: Date.now(), data: res };
+  return res;
+}
+
+export async function getBestId(
+  options?: UTSJSONObject | null
+): Promise<IdValue> {
+  const r = await getIdCodes(options);
+  if (r.best) {
+    /* @ts-ignore */ return (r as UTSJSONObject)[r.best] as IdValue;
+  }
+  return { available: false, source: "none", message: "no id available" };
+}

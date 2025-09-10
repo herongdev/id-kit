@@ -1,0 +1,10 @@
+
+import Settings from "android.provider.Settings";
+export function getAndroidIdRaw() : string | null {
+	try {
+		const context = UTSAndroid.getAppContext()!
+		const contentResolver = context.getContentResolver()
+		const id = Settings.Secure.getString(contentResolver, "android_id") as string
+		return id !== '' ? `android:${id}` : null
+	} catch { return null }
+}
