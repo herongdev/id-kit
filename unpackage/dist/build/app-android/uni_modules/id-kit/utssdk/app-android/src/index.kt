@@ -207,11 +207,11 @@ fun sha256HexSync(input: String): String {
         }
     }
     val hex = (h1 ushr 0).toString(16)
-    return if (hex.length % 2 === 1) {
-        ("0" + hex)
-    } else {
-        hex
+    var outHex = hex
+    if ((hex.length % 2) == 1) {
+        outHex = ("0" + hex)
     }
+    return outHex
 }
 fun buildSync(source: String, value: String?, exposeRaw: Boolean?, limited: Boolean?, msg: String?): IdValue {
     val available = value != null
@@ -222,13 +222,14 @@ fun buildSync(source: String, value: String?, exposeRaw: Boolean?, limited: Bool
     if (available) {
         val h = sha256HexSync((value as String) + _salt)
         (out as UTSJSONObject)["hash"] = h
-        if (exposeRaw) {
+        val showRaw = (exposeRaw === true)
+        if (showRaw) {
             (out as UTSJSONObject)["value"] = value as String
         }
     }
     return out as IdValue
 }
-fun register(_: UTSJSONObject? = null): UTSPromise<UTSJSONObject> {
+fun register(options: UTSJSONObject?): UTSPromise<UTSJSONObject> {
     return wrapUTSPromise(suspend w@{
             try {
                 DeviceIdentifier.register(UTSAndroid.getUniActivity()!!!!.getApplication()!!!! as Application)
@@ -241,7 +242,7 @@ fun register(_: UTSJSONObject? = null): UTSPromise<UTSJSONObject> {
     })
 }
 fun setSalt(salt: String): Unit {
-    _salt = salt || ""
+    _salt = salt
 }
 fun getAndroidId(exposeRaw: Boolean = false): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
@@ -251,8 +252,8 @@ fun getAndroidId(exposeRaw: Boolean = false): UTSPromise<IdValue> {
 }
 fun getGuid(exposeRaw: Boolean = false): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
-            var guid = get("UNIIDKIT_GUID")
-            if (!guid) {
+            var guid = get("UNIIDKIT_GUID") as String?
+            if (guid == null || guid.length === 0) {
                 guid = "app:" + uuid4()
                 set("UNIIDKIT_GUID", guid)
             }
@@ -341,23 +342,27 @@ fun getBestId(options: UTSJSONObject?): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
             val prefer = (options?.getArray<String>("prefer") ?: DEFAULT_ORDER) as UTSArray<String>
             val exposeRaw = (options?.getBoolean("exposeRaw") === true)
-            val r = await(getIdCodes(_uO("include" to prefer as Any, "exposeRaw" to exposeRaw) as Any))
-            if (r.best) {
+            val args: UTSJSONObject = object : UTSJSONObject() {
+                var include = prefer as Any
+                var exposeRaw = exposeRaw
+            }
+            val r = await(getIdCodes(args))
+            if (r.best != null) {
                 val b = r.best as String
-                if (b === "oaid" && r.oaid) {
-                    return@w r.oaid!!
+                if (b === "oaid" && r.oaid != null) {
+                    return@w r.oaid as IdValue
                 }
-                if (b === "androidId" && r.androidId) {
-                    return@w r.androidId!!
+                if (b === "androidId" && r.androidId != null) {
+                    return@w r.androidId as IdValue
                 }
-                if (b === "guid" && r.guid) {
-                    return@w r.guid!!
+                if (b === "guid" && r.guid != null) {
+                    return@w r.guid as IdValue
                 }
-                if (b === "pseudoId" && r.pseudoId) {
-                    return@w r.pseudoId!!
+                if (b === "pseudoId" && r.pseudoId != null) {
+                    return@w r.pseudoId as IdValue
                 }
-                if (b === "aaid" && r.aaid) {
-                    return@w r.aaid!!
+                if (b === "aaid" && r.aaid != null) {
+                    return@w r.aaid as IdValue
                 }
             }
             return@w IdValue(available = false, source = "none", message = "no id available")

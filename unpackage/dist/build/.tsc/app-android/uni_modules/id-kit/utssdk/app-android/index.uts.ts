@@ -27,7 +27,9 @@ function sha256HexSync(input: string): string {
     h1 = (h1 + ((h1 << 1) + (h1 << 4) + (h1 << 7) + (h1 << 8) + (h1 << 24))) | 0;
   }
   const hex = (h1 >>> 0).toString(16);
-  return hex.length % 2 === 1 ? ("0" + hex) : hex;
+  let outHex = hex;
+  if ((hex.length % 2) == 1) { outHex = ("0" + hex) }
+  return outHex;
 }
 
 function buildSync(
@@ -43,13 +45,14 @@ function buildSync(
   if (available) {
     const h = sha256HexSync((value as string) + _salt);
     (out as UTSJSONObject)["hash"] = h;
-    if (exposeRaw) (out as UTSJSONObject)["value"] = value as string;
+    const showRaw = (exposeRaw === true);
+    if (showRaw) (out as UTSJSONObject)["value"] = value as string;
   }
   return out as IdValue;
 }
 
 export async function register(
-  _: UTSJSONObject | null = null
+  options?: UTSJSONObject | null
 ): Promise<UTSJSONObject> {
   // 开源库预取（与隐私同意放同一时机）
   try {
@@ -66,7 +69,7 @@ export async function register(
 }
 
 export function setSalt(salt: string): void {
-  _salt = salt || "";
+  _salt = salt;
 }
 
 export async function getAndroidId(
@@ -77,8 +80,8 @@ export async function getAndroidId(
 }
 
 export async function getGuid(exposeRaw: boolean = false): Promise<IdValue> {
-  let guid = get("UNIIDKIT_GUID");
-  if (!guid) {
+  let guid = get("UNIIDKIT_GUID") as string | null;
+  if (guid == null || guid.length === 0) {
     guid = `app:${uuid4()}`;
     set("UNIIDKIT_GUID", guid);
   }
@@ -154,14 +157,15 @@ export async function getBestId(
 ): Promise<IdValue> {
   const prefer = (options?.getArray<string>("prefer") ?? DEFAULT_ORDER) as string[];
   const exposeRaw = (options?.getBoolean("exposeRaw") === true);
-  const r = await getIdCodes({ include: prefer as any, exposeRaw } as any);
-  if (r.best) {
+  const args: UTSJSONObject = { "include": prefer as any, "exposeRaw": exposeRaw } as UTSJSONObject;
+  const r = await getIdCodes(args);
+  if (r.best != null) {
     const b = r.best as string;
-    if (b === "oaid" && r.oaid) return r.oaid;
-    if (b === "androidId" && r.androidId) return r.androidId;
-    if (b === "guid" && r.guid) return r.guid;
-    if (b === "pseudoId" && r.pseudoId) return r.pseudoId;
-    if (b === "aaid" && r.aaid) return r.aaid;
+    if (b === "oaid" && r.oaid != null) return r.oaid as IdValue;
+    if (b === "androidId" && r.androidId != null) return r.androidId as IdValue;
+    if (b === "guid" && r.guid != null) return r.guid as IdValue;
+    if (b === "pseudoId" && r.pseudoId != null) return r.pseudoId as IdValue;
+    if (b === "aaid" && r.aaid != null) return r.aaid as IdValue;
   }
   return { available: false, source: "none", message: "no id available" };
 }
