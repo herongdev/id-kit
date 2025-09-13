@@ -15,9 +15,7 @@ import uts.sdk.modules.idKit.setSalt
 import uts.sdk.modules.idKit.getBestId
 import io.dcloud.uniapp.extapi.showToast as uni_showToast
 open class GenPagesIndexIndex : BasePage {
-    constructor(__ins: ComponentInternalInstance, __renderer: String?) : super(__ins, __renderer) {
-        onLoad(fun(_: OnLoadOptions) {}, __ins)
-    }
+    constructor(__ins: ComponentInternalInstance, __renderer: String?) : super(__ins, __renderer) {}
     @Suppress("UNUSED_PARAMETER", "UNUSED_VARIABLE")
     override fun `$render`(): Any? {
         val _ctx = this
@@ -94,15 +92,15 @@ open class GenPagesIndexIndex : BasePage {
         return wrapUTSPromise(suspend {
                 this.loading = true
                 try {
-                    val result = await(getBestId(object : UTSJSONObject() {
+                    val best = await(getBestId(object : UTSJSONObject() {
                         var exposeRaw = false
-                    }))
-                    this.result["value"] = result.value
-                    this.result["hash"] = result.hash
-                    this.result["available"] = result.available
-                    this.result["limited"] = result.limited
-                    this.result["source"] = result.source
-                    this.result["message"] = result.message
+                    })) as UTSJSONObject
+                    this.result["source"] = (best["source"] ?: "none") as String
+                    this.result["available"] = (best["available"] === true)
+                    this.result["hash"] = (best["hash"] ?: null) as String?
+                    this.result["value"] = (best["value"] ?: null) as String?
+                    this.result["limited"] = (best["limited"] ?: null) as Boolean?
+                    this.result["message"] = (best["message"] ?: null) as String?
                     this.hasResult = true
                 }
                  catch (e: Throwable) {
@@ -125,7 +123,7 @@ open class GenPagesIndexIndex : BasePage {
         }
         val styles0: Map<String, Map<String, Map<String, Any>>>
             get() {
-                return _uM("wrapper" to _pS(_uM("paddingTop" to "24rpx", "paddingRight" to "24rpx", "paddingBottom" to "24rpx", "paddingLeft" to "24rpx", "display" to "flex", "justifyContent" to "center")), "logo" to _pS(_uM("height" to 100, "width" to 100, "marginTop" to 100, "marginRight" to "auto", "marginBottom" to 25, "marginLeft" to "auto")), "title" to _pS(_uM("fontSize" to 18, "color" to "#8f8f94", "textAlign" to "center")))
+                return _uM("wrapper" to _pS(_uM("paddingTop" to "24rpx", "paddingRight" to "24rpx", "paddingBottom" to "24rpx", "paddingLeft" to "24rpx", "display" to "flex", "flexDirection" to "column", "justifyContent" to "center")), "actions" to _pS(_uM("display" to "flex")), "result" to _pS(_uM("display" to "flex", "flexDirection" to "column")), "logo" to _pS(_uM("height" to 100, "width" to 100, "marginTop" to 100, "marginRight" to "auto", "marginBottom" to 25, "marginLeft" to "auto")), "title" to _pS(_uM("fontSize" to 18, "color" to "#8f8f94", "textAlign" to "center")))
             }
         var inheritAttrs = true
         var inject: Map<String, Map<String, Any?>> = _uM()

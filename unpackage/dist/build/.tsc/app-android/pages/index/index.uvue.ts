@@ -1,52 +1,55 @@
 
-	import { register, setSalt, getBestId } from "@/uni_modules/id-kit"
-	const __sfc__ = defineComponent({
-		data() {
-			return {
-				consent: false,
-				loading: false,
-				hasResult: false,
-				result: {} as UTSJSONObject
-			}
-		},
-		onLoad() {
+import { register, setSalt, getBestId } from '@/uni_modules/id-kit'
 
-		},
-		methods: {
-			async onConsent() {
-				this.loading = true
-				try {
-					await register({})
-					setSalt("demo-salt")
-					this.consent = true
-					uni.showToast({ title: "已同意" })
-				} catch (e) {
-					uni.showToast({ title: "初始化失败", icon: "none" })
-				} finally {
-					this.loading = false
-				}
-			},
-			async onGetBest() {
-				this.loading = true
-				try {
-					const result = await getBestId({ exposeRaw: false })
-					this.result.value = result.value
-					this.result.hash = result.hash
-					this.result.available = result.available
-					this.result.limited = result.limited
-					this.result.source = result.source
-					this.result.message = result.message
-					this.hasResult = true
-				} catch (e) {
-					console.log('onGetBest error', e)
-					this.result = {} as UTSJSONObject
-					this.hasResult = true
-				} finally {
-					this.loading = false
-				}
-			}
-		}
-	})
+const __sfc__ = defineComponent({
+  data() {
+    return {
+      consent: false,
+      loading: false,
+      hasResult: false,
+      // 结果使用 UTSJSONObject，避免将原生 JSONObject 强转为自定义类型导致 ClassCastException
+      result: {} as UTSJSONObject
+    }
+  },
+  methods: {
+    async onConsent() {
+      this.loading = true
+      try {
+        await register({})
+        setSalt('demo-salt')
+        this.consent = true
+        uni.showToast({ title: '已同意' })
+      } catch (e) {
+        uni.showToast({ title: '初始化失败', icon: 'none' })
+      } finally {
+        this.loading = false
+      }
+    },
+    async onGetBest() {
+      this.loading = true
+      try {
+        // 原生返回 UTSJSONObject；按需拷贝到响应式 result
+        const best = (await getBestId({ exposeRaw: false })) as UTSJSONObject
+
+        // 为稳妥起见做一次空值兜底
+        this.result['source'] = (best['source'] ?? 'none') as string
+        this.result['available'] = (best['available'] === true)
+        this.result['hash'] = (best['hash'] ?? null) as (string | null)
+        this.result['value'] = (best['value'] ?? null) as (string | null)
+        this.result['limited'] = (best['limited'] ?? null) as (boolean | null)
+        this.result['message'] = (best['message'] ?? null) as (string | null)
+
+        this.hasResult = true
+      } catch (e) {
+        console.log('onGetBest error', e)
+        this.result = {} as UTSJSONObject
+        this.hasResult = true
+      } finally {
+        this.loading = false
+      }
+    }
+  }
+})
 
 export default __sfc__
 function GenPagesIndexIndexRender(this: InstanceType<typeof __sfc__>): any | null {
@@ -84,4 +87,4 @@ const _cache = this.$.renderCache
       : _cC("v-if", true)
   ])
 }
-const GenPagesIndexIndexStyles = [_uM([["wrapper", _pS(_uM([["paddingTop", "24rpx"], ["paddingRight", "24rpx"], ["paddingBottom", "24rpx"], ["paddingLeft", "24rpx"], ["display", "flex"], ["justifyContent", "center"]]))], ["logo", _pS(_uM([["height", 100], ["width", 100], ["marginTop", 100], ["marginRight", "auto"], ["marginBottom", 25], ["marginLeft", "auto"]]))], ["title", _pS(_uM([["fontSize", 18], ["color", "#8f8f94"], ["textAlign", "center"]]))]])]
+const GenPagesIndexIndexStyles = [_uM([["wrapper", _pS(_uM([["paddingTop", "24rpx"], ["paddingRight", "24rpx"], ["paddingBottom", "24rpx"], ["paddingLeft", "24rpx"], ["display", "flex"], ["flexDirection", "column"], ["justifyContent", "center"]]))], ["actions", _pS(_uM([["display", "flex"]]))], ["result", _pS(_uM([["display", "flex"], ["flexDirection", "column"]]))], ["logo", _pS(_uM([["height", 100], ["width", 100], ["marginTop", 100], ["marginRight", "auto"], ["marginBottom", 25], ["marginLeft", "auto"]]))], ["title", _pS(_uM([["fontSize", 18], ["color", "#8f8f94"], ["textAlign", "center"]]))]])]

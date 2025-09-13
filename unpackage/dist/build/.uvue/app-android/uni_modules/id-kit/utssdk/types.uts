@@ -1,19 +1,8 @@
 export type IdValue = {
-    type: string; // "oaid" | "appSetId" | "androidId" | "guid" | "pseudoId" | "aaid" | "none"
-    value: string | null; // 原始值或处理后的值
-    available: boolean; // 是否可用
-    limited?: boolean | null; // 是否受限（比如 aaid 的限制个性化广告）
-    raw?: string | null; // exposeRaw=true 时返回原始值
-    message?: string | null; // 附加信息（fallback、unavailable 原因等）
-};
-export type IdCodesResult = {
-    consent: boolean;
-    ts: number;
-    oaid?: IdValue;
-    appSetId?: IdValue; // ★ 新增：让 App Set ID 进入汇总参与 best 选择
-    androidId?: IdValue;
-    guid?: IdValue;
-    pseudoId?: IdValue;
-    aaid?: IdValue;
-    best?: string | null; // "oaid" | "appSetId" | "androidId" | "guid" | "pseudoId" | "aaid" | null
+    source: string;
+    available: boolean;
+    limited: boolean | null;
+    value: string | null;
+    hash: string | null;
+    message: string | null;
 };

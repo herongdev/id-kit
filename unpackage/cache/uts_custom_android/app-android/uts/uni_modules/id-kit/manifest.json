@@ -1,0 +1,47 @@
+{
+  "version": "1",
+  "env": {
+    "compilerVersion": "4.76"
+  },
+  "files": {
+    "utssdk/app-android/index.uts": {
+      "md5": "01d3db4d03cda627d849487ed9de9fd8"
+    },
+    "utssdk/common/hash.uts": {
+      "md5": "cefaaeef242b7e412695ca3bb332a304"
+    },
+    "utssdk/common/policy.uts": {
+      "md5": "c4f8b30a339735cdcbc357c1cc4521c1"
+    },
+    "utssdk/common/storage.uts": {
+      "md5": "87c6701965f0e59e215af34b96257f6a"
+    },
+    "utssdk/common/uuid.uts": {
+      "md5": "4d1acc3e4d578c02fa947a8609c5e0e5"
+    },
+    "utssdk/index.uts": {
+      "md5": "30141fe1060589a5a402849b9f2027bd"
+    },
+    "utssdk/interface.uts": {
+      "md5": "a4e13adad01fdcc74a48292969956e5d"
+    },
+    "utssdk/types.uts": {
+      "md5": "9b42d03c6f3a7d26061596fbb53bd9e3"
+    },
+    "utssdk/unierror.uts": {
+      "md5": "2e94771aa7d3802e8966524c6a142eb2"
+    },
+    "utssdk/utils.uts": {
+      "md5": "abdad76cd5c1353f8394dbd231d64fa1"
+    },
+    "package.json": {
+      "md5": "e1739585e6a8c83a19edf156ebd93126"
+    },
+    "utssdk/app-android/config.json": {
+      "md5": "487b532eb70231a6a2c7cc4af98c8516"
+    },
+    "utssdk/app-android/DeviceIdNative.kt": {
+      "md5": "f23cb63f8a81a12e137771dd6b441c2a"
+    }
+  }
+}

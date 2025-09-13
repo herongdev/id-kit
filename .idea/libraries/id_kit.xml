@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="id-kit">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/uni_modules/id-kit.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
