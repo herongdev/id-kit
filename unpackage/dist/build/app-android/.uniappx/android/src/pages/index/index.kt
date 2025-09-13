@@ -76,7 +76,7 @@ open class GenPagesIndexIndex : BasePage {
         return wrapUTSPromise(suspend {
                 this.loading = true
                 try {
-                    await(register())
+                    await(register(UTSJSONObject()))
                     setSalt("demo-salt")
                     this.consent = true
                     uni_showToast(ShowToastOptions(title = "已同意"))
@@ -94,20 +94,20 @@ open class GenPagesIndexIndex : BasePage {
         return wrapUTSPromise(suspend {
                 this.loading = true
                 try {
-                    val r = await(getBestId(object : UTSJSONObject() {
+                    val result = await(getBestId(object : UTSJSONObject() {
                         var exposeRaw = false
                     }))
-                    this.result = r as UTSJSONObject
+                    this.result["value"] = result.value
+                    this.result["hash"] = result.hash
+                    this.result["available"] = result.available
+                    this.result["limited"] = result.limited
+                    this.result["source"] = result.source
+                    this.result["message"] = result.message
                     this.hasResult = true
                 }
                  catch (e: Throwable) {
-                    this.result = object : UTSJSONObject() {
-                        var available = false
-                        var source = "unknown"
-                        var message = String(e)
-                        var hash = ""
-                        var value = ""
-                    }
+                    console.log("onGetBest error", e)
+                    this.result = UTSJSONObject()
                     this.hasResult = true
                 }
                  finally{

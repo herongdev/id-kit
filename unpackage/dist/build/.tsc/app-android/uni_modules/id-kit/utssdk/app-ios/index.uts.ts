@@ -1,9 +1,19 @@
 import { IdCodesResult, IdValue } from "../common/types.uts";
 import { get, set } from "../common/storage.uts";
 import { uuid4 } from "../common/uuid.uts";
+import { setPolicy, getPolicy } from "../common/policy.uts"
+
+
+// 复杂逻辑：桥接 Swift 原生获取 IDFA/IDFV/Keychain
+declare class DeviceIdNative {
+  static getIDFAOrNull(requestATT: boolean): string | null
+  static getIDFVOrNull(): string | null
+  static getKeychainUUID(): string
+}
 
 let _consent = false;
 let _salt = "";
+let _strict = false; // 复杂逻辑：严格合规模式（禁用 IDFA）
 let _cache: { ts: number; data: IdCodesResult } | null = null;
 
 function sha256HexSync(input: string): string {
@@ -33,6 +43,8 @@ export async function register(
   _consent = true;
   return { consent: _consent } as UTSJSONObject;
 }
+export function setStrictMode(strict: boolean): void { _strict = strict }
+
 export function setSalt(salt: string): void {
   _salt = salt || "";
 }
@@ -44,6 +56,20 @@ function getIDFVRaw(): string | null {
   } catch {
     return null;
   }
+}
+
+
+export async function getIDFV(exposeRaw: boolean = false): Promise<IdValue> {
+  // 复杂逻辑：优先使用原生 IDFV，不可用再降级 Keychain UUID
+  const idfv = DeviceIdNative.getIDFVOrNull();
+  if (idfv && idfv.length > 0) return buildSync("idfv", idfv, exposeRaw, true, null);
+  const uuid = DeviceIdNative.getKeychainUUID();
+  return buildSync("idfv", uuid, exposeRaw, false, "fallback:keychain");
+}
+
+export async function getIDFA(requestATT: boolean = false): Promise<IdValue> {
+  const idfa = DeviceIdNative.getIDFAOrNull(requestATT);
+  return buildSync("idfa", idfa ?? null, false, true, idfa ? null : "no-permission-or-limited");
 }
 
 export async function getGuid(exposeRaw: boolean = false): Promise<IdValue> {
@@ -74,22 +100,52 @@ export async function getIdCodes(
   const exposeRaw = (options?.getBoolean("exposeRaw") || false) as boolean;
   const ttl = (options?.getNumber("ttlMs") || 24 * 3600 * 1000) as number;
 
-  if (_cache && Date.now() - _cache.ts < ttl) return _cache.data;
-
-  const res: IdCodesResult = {
-    consent: _consent,
-    ts: Date.now(),
-  } as IdCodesResult;
-  if (!_consent) {
-    res.guid = { available: false, source: "guid", message: "consent=false" };
-    return res;
+  // 复杂逻辑：根据策略计算有效 include 与顺序
+  const policy = getPolicy();
+  let includeEff = include.slice();
+  let orderEff = (options?.getArray<string>("prefer") || includeEff) as string[];
+  if (policy === 'cn') {
+    includeEff = includeEff.filter(k => ['idfv','guid'].indexOf(k) >= 0);
+    orderEff = ['idfv','guid'].filter(k => includeEff.indexOf(k) >= 0);
+  } else if (policy === 'global') {
+    includeEff = includeEff.filter(k => ['idfa','idfv','guid'].indexOf(k) >= 0);
+    orderEff = ['idfa','idfv','guid'].filter(k => includeEff.indexOf(k) >= 0);
+  } else if (policy === 'strict') {
+    includeEff = includeEff.filter(k => ['idfv','guid'].indexOf(k) >= 0);
+    orderEff = ['idfv','guid'].filter(k => includeEff.indexOf(k) >= 0);
+    // 复杂逻辑：策略为 strict 时强制进入严格合规模式
+    _strict = true;
   }
 
-  if (include.indexOf("idfv") >= 0)
-    res.idfv = buildSync("idfv", getIDFVRaw(), exposeRaw, false, null);
-  if (include.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
+  if (_cache && Date.now() - _cache.ts < ttl) return _cache.data;
 
-  const order = ["idfv", "guid"];
+  const res: IdCodesResult = { consent: _consent, ts: Date.now() } as IdCodesResult;
+  if (!_consent && _strict) {
+    // 复杂逻辑：未同意 + 严格模式 -> 仅非广告类返回
+    if (includeEff.indexOf("idfv") >= 0) res.idfv = await getIDFV(exposeRaw);
+    if (includeEff.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
+  } else {
+    if (includeEff.indexOf("idfv") >= 0) res.idfv = await getIDFV(exposeRaw);
+    if (includeEff.indexOf("idfa") >= 0) res.idfa = await getIDFA(false);
+    if (includeEff.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
+  }
+
+  const order = orderEff;
+  res.best = null;
+  for (let i = 0; i < order.length; i++) {
+    const k = order[i];
+    /* @ts-ignore */ const v: IdValue = (res as UTSJSONObject)[k] as any;
+    if (v && v.available) { res.best = k; break; }
+  }
+  _cache = { ts: Date.now(), data: res };
+  return res;
+  }
+
+  if (includeEff.indexOf("idfv") >= 0)
+    res.idfv = await getIDFV(exposeRaw);
+  if (includeEff.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
+
+  const order = orderEff;
   res.best = null;
   for (let i = 0; i < order.length; i++) {
     const k = order[i];

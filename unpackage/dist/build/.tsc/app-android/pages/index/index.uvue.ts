@@ -16,7 +16,7 @@
 			async onConsent() {
 				this.loading = true
 				try {
-					await register()
+					await register({})
 					setSalt("demo-salt")
 					this.consent = true
 					uni.showToast({ title: "已同意" })
@@ -29,17 +29,17 @@
 			async onGetBest() {
 				this.loading = true
 				try {
-					const r = await getBestId({ exposeRaw: false })
-					this.result = r as UTSJSONObject
+					const result = await getBestId({ exposeRaw: false })
+					this.result.value = result.value
+					this.result.hash = result.hash
+					this.result.available = result.available
+					this.result.limited = result.limited
+					this.result.source = result.source
+					this.result.message = result.message
 					this.hasResult = true
 				} catch (e) {
-					this.result = {
-						"available": false,
-						"source": "unknown",
-						"message": String(e),
-						"hash": "",
-						"value": ""
-					} as UTSJSONObject
+					console.log('onGetBest error', e)
+					this.result = {} as UTSJSONObject
 					this.hasResult = true
 				} finally {
 					this.loading = false

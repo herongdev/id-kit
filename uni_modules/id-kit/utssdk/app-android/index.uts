@@ -1,68 +1,62 @@
-import { IdCodesResult, IdValue } from "../common/types.uts";
+import { IdCodesResult, IdValue } from "../types.uts";
 import { get, set } from "../common/storage.uts";
 import { uuid4 } from "../common/uuid.uts";
-import { getAndroidIdRaw } from "./adapters/android_id.uts";
-import { getOAIDRaw } from "./adapters/oaid.uts";
-import { getAAIDRaw } from "./adapters/aaid.uts";
-import { getPseudoIdRaw } from "./adapters/pseudo_id.uts";
-import Application from "android.app.Application";
-import DeviceIdentifier from "com.github.gzuliyujiang.oaid.DeviceIdentifier";
+import { DeviceIdNative } from "uts.sdk.modules.idKit";
 
 type CacheType = {
-    ts: number
-    data: IdCodesResult
+  ts: number
+  data: IdCodesResult
+}
+
+function buildId(
+  type: string,
+  rawVal: string | null,
+  exposeRaw: boolean,
+  limited: boolean | null,
+  message: string | null
+): IdValue {
+  const available = !!(rawVal && rawVal.length > 0)
+  return {
+    type,
+    value: rawVal,
+    available,
+    limited: limited as (boolean | null),
+    raw: exposeRaw ? rawVal : null,
+    message
+  } as IdValue
+}
+
+// Kotlin 获取各类ID，并做可用性判断（均 try-catch 兜底返回 null）
+function _getOaidNative(): string | null {
+  try { return DeviceIdNative.getOAIDOrNull() } catch (e) { return null }
+}
+function _getAppSetIdNative(): string | null {
+  try { return DeviceIdNative.getAppSetIdOrNull() } catch (e) { return null }
+}
+function _getAaidNative(): string | null {
+  try { return DeviceIdNative.getAdvertisingIdOrNull() } catch (e) { return null }
+}
+function _getAndroidIdNative(): string | null {
+  try { return DeviceIdNative.getAndroidIdOrNull() } catch (e) { return null }
+}
+function _getPseudoIdNative(): string | null {
+  try { return DeviceIdNative.getPseudoId() } catch (e) { return null }
 }
 
 let _consent = false;
 let _salt = "";
 let _cache: CacheType | null = null;
 
-const DEFAULT_ORDER = ["oaid", "androidId", "guid", "pseudoId", "aaid"];
-
-function sha256HexSync(input: string): string {
-  // 简化：无原生字节数组时使用 JS 级别 hash 近似，避免 getBytes/byte[] 依赖
-  let h1 = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    h1 ^= (input.charCodeAt(i) as number);
-    h1 = (h1 + ((h1 << 1) + (h1 << 4) + (h1 << 7) + (h1 << 8) + (h1 << 24))) | 0;
-  }
-  const hex = (h1 >>> 0).toString(16);
-  let outHex = hex;
-  if ((hex.length % 2) == 1) { outHex = ("0" + hex) }
-  return outHex;
-}
-
-function buildSync(
-  source: string,
-  value?: string | null,
-  exposeRaw?: boolean,
-  limited?: boolean | null,
-  msg?: string | null
-): IdValue {
-  const available = value != null;
-  const out: UTSJSONObject = { available, limited: (limited === true), source } as UTSJSONObject;
-  if (msg != null) (out as UTSJSONObject)["message"] = msg;
-  if (available) {
-    const h = sha256HexSync((value as string) + _salt);
-    (out as UTSJSONObject)["hash"] = h;
-    const showRaw = (exposeRaw === true);
-    if (showRaw) (out as UTSJSONObject)["value"] = value as string;
-  }
-  return out as IdValue;
-}
+// 将 appSetId 纳入默认优先级，放在 oaid 之后以保证“跨重装稳定ID”优先
+const DEFAULT_ORDER = ["oaid", "appSetId", "androidId", "guid", "pseudoId", "aaid"];
 
 export async function register(
   options?: UTSJSONObject | null
 ): Promise<UTSJSONObject> {
-  // 开源库预取（与隐私同意放同一时机）
+  // 隐私同意后，仅通过原生预取，避免 UTS 直接依赖第三方库
   try {
-    DeviceIdentifier.register(
-      UTSAndroid.getUniActivity()!!.getApplication()!! as Application
-    );
-  } catch {}
-
-  // 可选：提前加载 MSA 安全库（若接入）
-  // try { java.lang.System.loadLibrary("msaoaidsec") } catch {}
+    DeviceIdNative.prefetchOaidAfterConsent();
+  } catch { /* ignore */ }
 
   _consent = true;
   return { consent: _consent } as UTSJSONObject;
@@ -72,11 +66,11 @@ export function setSalt(salt: string): void {
   _salt = salt;
 }
 
-export async function getAndroidId(
-  exposeRaw: boolean = false
-): Promise<IdValue> {
-  const v = getAndroidIdRaw();
-  return buildSync("androidId", v, exposeRaw, false, null);
+export async function getAndroidId(exposeRaw: boolean = false): Promise<IdValue> {
+  // 完全由 Kotlin 决定可用性；UTS 不再做适配器回退
+  const v = _getAndroidIdNative();
+  if (v != null && v.length > 0) return buildId("androidId", v, exposeRaw, false, null);
+  return buildId("androidId", null, exposeRaw, false, "unavailable");
 }
 
 export async function getGuid(exposeRaw: boolean = false): Promise<IdValue> {
@@ -85,19 +79,34 @@ export async function getGuid(exposeRaw: boolean = false): Promise<IdValue> {
     guid = `app:${uuid4()}`;
     set("UNIIDKIT_GUID", guid);
   }
-  return buildSync("guid", guid as string, exposeRaw, false, null);
+  return buildId("guid", guid as string, exposeRaw, false, null);
 }
 
 export async function getOAID(): Promise<IdValue> {
-  const ctx = UTSAndroid.getUniActivity()!!;
-  const r = await getOAIDRaw(ctx);
-  return buildSync("oaid", r.value ?? null, false, r.limited ?? null, r.message ?? null);
+  // 仅走原生逻辑（支持性短路/异常兜底已在 Kotlin 内处理）
+  const v = _getOaidNative();
+  if (v != null && v.length > 0) return buildId("oaid", v, false, true, null);
+  return buildId("oaid", null, false, null, "unavailable");
 }
 
 export async function getAAID(): Promise<IdValue> {
-  const ctx = UTSAndroid.getUniActivity()!!;
-  const r = await getAAIDRaw(ctx);
-  return buildSync("aaid", r.value ?? null, false, r.limited ?? null, r.message ?? null);
+  // 完全走原生 GAID（限制个性化广告或清零时返回 null）
+  const v = _getAaidNative();
+  if (v != null && v.length > 0) return buildId("aaid", v, false, true, null);
+  return buildId("aaid", null, false, null, "unavailable");
+}
+
+// 单独暴露 App Set ID，并参与 best 选择（已纳入 DEFAULT_ORDER）
+export async function getAppSetId(exposeRaw: boolean = false): Promise<IdValue> {
+  // 原生侧已做超时与异常兜底
+  const v = _getAppSetIdNative();
+  return buildId("appSetId", v ?? null, exposeRaw, /* limited= */ null, v ? null : "unavailable");
+}
+
+export async function getPseudoId(exposeRaw: boolean = false): Promise<IdValue> {
+  const v = _getPseudoIdNative();
+  if (v != null && v.length > 0) return buildId("pseudoId", v, exposeRaw, false, null);
+  return buildId("pseudoId", null, false, null, "unavailable");
 }
 
 export async function getIdCodes(
@@ -114,27 +123,33 @@ export async function getIdCodes(
     consent: _consent,
     ts: Date.now(),
   } as IdCodesResult;
+
   if (!_consent) {
-    res.guid = { available: false, source: "guid", message: "consent=false" };
+    res.guid = buildId("guid", null, false, null, "consent=false");
+    _cache = { ts: Date.now(), data: res };
     return res;
   }
 
   if (include.indexOf("oaid") >= 0) res.oaid = await getOAID();
+
+  // 仅在 include 含 appSetId 时才计算，避免无谓调用
+  if (include.indexOf("appSetId") >= 0)
+    res.appSetId = await getAppSetId(exposeRaw);
+
   if (include.indexOf("androidId") >= 0)
     res.androidId = await getAndroidId(exposeRaw);
-  if (include.indexOf("aaid") >= 0) res.aaid = await getAAID();
-  if (include.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
-  if (include.indexOf("pseudoId") >= 0)
-    res.pseudoId = buildSync(
-      "pseudoId",
-      getPseudoIdRaw(),
-      exposeRaw,
-      false,
-      null
-    );
 
+  if (include.indexOf("aaid") >= 0) res.aaid = await getAAID();
+
+  if (include.indexOf("guid") >= 0) res.guid = await getGuid(exposeRaw);
+
+  if (include.indexOf("pseudoId") >= 0)
+    res.pseudoId = await getPseudoId(exposeRaw);
+
+  // 把 appSetId 纳入 pick/best 选择
   function pick(res: IdCodesResult, key: string): IdValue | null {
     if (key === "oaid") return (res.oaid ?? null);
+    if (key === "appSetId") return (res.appSetId ?? null);
     if (key === "androidId") return (res.androidId ?? null);
     if (key === "guid") return (res.guid ?? null);
     if (key === "pseudoId") return (res.pseudoId ?? null);
@@ -155,17 +170,19 @@ export async function getIdCodes(
 export async function getBestId(
   options?: UTSJSONObject | null
 ): Promise<IdValue> {
-  const prefer = (options?.getArray<string>("prefer") ?? DEFAULT_ORDER) as string[];
+  const prefer = options?.getArray<string>("prefer") ?? DEFAULT_ORDER;
   const exposeRaw = (options?.getBoolean("exposeRaw") === true);
-  const args: UTSJSONObject = { "include": prefer as any, "exposeRaw": exposeRaw } as UTSJSONObject;
-  const r = await getIdCodes(args);
-  if (r.best != null) {
-    const b = r.best as string;
-    if (b === "oaid" && r.oaid != null) return r.oaid as IdValue;
-    if (b === "androidId" && r.androidId != null) return r.androidId as IdValue;
-    if (b === "guid" && r.guid != null) return r.guid as IdValue;
-    if (b === "pseudoId" && r.pseudoId != null) return r.pseudoId as IdValue;
-    if (b === "aaid" && r.aaid != null) return r.aaid as IdValue;
+  const args: UTSJSONObject = { "include": prefer, "exposeRaw": exposeRaw };
+  const result = await getIdCodes(args);
+  if (result.best != null) {
+    const bestIdTypeName = result.best;
+    if (bestIdTypeName === "oaid" && result.oaid != null) return result.oaid;
+    // 当 best 命中 appSetId 时返回
+    if (bestIdTypeName === "appSetId" && result.appSetId != null) return result.appSetId;
+    if (bestIdTypeName === "androidId" && result.androidId != null) return result.androidId;
+    if (bestIdTypeName === "guid" && result.guid != null) return result.guid;
+    if (bestIdTypeName === "pseudoId" && result.pseudoId != null) return result.pseudoId;
+    if (bestIdTypeName === "aaid" && result.aaid != null) return result.aaid;
   }
-  return { available: false, source: "none", message: "no id available" };
+  return buildId("none", null, false, null, "no id available");
 }

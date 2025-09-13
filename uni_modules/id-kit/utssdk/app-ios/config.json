@@ -1,3 +1,8 @@
 {
-  "deploymentTarget": "12"
+  "deploymentTarget": "12",
+  "frameworks": [
+    "AdSupport",
+    "AppTrackingTransparency",
+    "Security"
+  ]
 }

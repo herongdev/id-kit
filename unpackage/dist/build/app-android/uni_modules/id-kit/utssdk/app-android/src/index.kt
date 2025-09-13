@@ -1,10 +1,5 @@
 @file:Suppress("UNCHECKED_CAST", "USELESS_CAST", "INAPPLICABLE_JVM_NAME", "UNUSED_ANONYMOUS_PARAMETER", "NAME_SHADOWING", "UNNECESSARY_NOT_NULL_ASSERTION")
 package uts.sdk.modules.idKit
-import android.app.Application
-import android.provider.Settings
-import com.github.gzuliyujiang.oaid.DeviceID
-import com.github.gzuliyujiang.oaid.DeviceIdentifier
-import com.github.gzuliyujiang.oaid.IGetter
 import io.dcloud.uniapp.*
 import io.dcloud.uniapp.extapi.*
 import io.dcloud.uniapp.framework.*
@@ -15,37 +10,35 @@ import io.dcloud.uts.*
 import io.dcloud.uts.Map
 import io.dcloud.uts.Set
 import io.dcloud.uts.UTSAndroid
-import java.lang.Exception
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import uts.sdk.modules.idKit.DeviceIdNative
 import io.dcloud.uniapp.extapi.getStorageSync as uni_getStorageSync
 import io.dcloud.uniapp.extapi.setStorageSync as uni_setStorageSync
 open class IdValue (
+    @JsonNotNull
+    open var type: String,
     open var value: String? = null,
-    open var hash: String? = null,
     @JsonNotNull
     open var available: Boolean = false,
     open var limited: Boolean? = null,
-    @JsonNotNull
-    open var source: String,
+    open var raw: String? = null,
     open var message: String? = null,
 ) : UTSObject()
 open class IdCodesResult (
-    open var oaid: IdValue? = null,
-    open var aaid: IdValue? = null,
-    open var androidId: IdValue? = null,
-    open var idfv: IdValue? = null,
-    open var widevineId: IdValue? = null,
-    open var pseudoId: IdValue? = null,
-    open var imei: IdValue? = null,
-    open var guid: IdValue? = null,
-    open var best: String? = null,
     @JsonNotNull
     open var consent: Boolean = false,
     @JsonNotNull
     open var ts: Number,
+    open var oaid: IdValue? = null,
+    open var appSetId: IdValue? = null,
+    open var androidId: IdValue? = null,
+    open var guid: IdValue? = null,
+    open var pseudoId: IdValue? = null,
+    open var aaid: IdValue? = null,
+    open var best: String? = null,
 ) : UTSObject()
 fun get(key: String): String? {
     try {
@@ -98,141 +91,75 @@ fun getRandom16(): Uint8Array {
 fun uuid4(): String {
     return formatUuid(getRandom16())
 }
-fun getAndroidIdRaw(): String? {
-    try {
-        val context = UTSAndroid.getAppContext()!!
-        val contentResolver = context.getContentResolver()
-        val id = Settings.Secure.getString(contentResolver, "android_id") as String
-        return if (id !== "") {
-            "android:" + id
-        } else {
-            null
-        }
-    }
-     catch (e: Throwable) {
-        return null
-    }
-}
-open class OAIDResult (
-    open var value: String? = null,
-    open var limited: Boolean? = null,
-    @JsonNotNull
-    open var source: String,
-    open var message: String? = null,
-) : UTSObject()
-fun getOAIDRaw(ctx: android.content.Context): UTSPromise<OAIDResult> {
-    return wrapUTSPromise(suspend w@{
-            try {
-                val id = DeviceIdentifier.getOAID(ctx) as String
-                if (id != "") {
-                    return@w OAIDResult(value = id, source = "GZU")
-                }
-            }
-             catch (e: Throwable) {}
-            try {
-                return@w await(UTSPromise(fun(resolve, _reject){
-                    DeviceID.getOAID(ctx, object : IGetter {
-                        override fun onOAIDGetComplete(result: String) {
-                            resolve(OAIDResult(value = result, source = "GZU"))
-                        }
-                        override fun onOAIDGetError(error: Exception) {
-                            resolve(OAIDResult(source = "NONE", message = ("" + error)))
-                        }
-                    })
-                }
-                ))
-            }
-             catch (e: Throwable) {
-                return@w OAIDResult(source = "NONE", message = ("" + e))
-            }
-    })
-}
-open class AAIDResult (
-    open var value: String? = null,
-    open var limited: Boolean? = null,
-    open var message: String? = null,
-) : UTSObject()
-fun getAAIDRaw(ctx: android.content.Context): UTSPromise<AAIDResult> {
-    return wrapUTSPromise(suspend w@{
-            try {
-                return@w AAIDResult(message = "AAID not integrated")
-            }
-             catch (e: Throwable) {
-                return@w AAIDResult(message = "" + e)
-            }
-    })
-}
-fun getPseudoIdRaw(): String? {
-    try {
-        val text = android.os.Build.BOARD + android.os.Build.BRAND + android.os.Build.DEVICE + android.os.Build.DISPLAY + android.os.Build.FINGERPRINT + "uni-id-kit"
-        var hash: Number = 0
-        run {
-            var i: Number = 0
-            while(i < text.length){
-                val chr = (text.charCodeAt(i) as Number)
-                hash = ((hash shl 5) - hash + chr) or 0
-                i++
-            }
-        }
-        return "pseudo:" + (hash ushr 0).toString(16)
-    }
-     catch (e: Throwable) {
-        return null
-    }
-}
 open class CacheType (
     @JsonNotNull
     open var ts: Number,
     @JsonNotNull
     open var data: IdCodesResult,
 ) : UTSObject()
+fun buildId(type: String, rawVal: String?, exposeRaw: Boolean, limited: Boolean?, message: String?): IdValue {
+    val available = !!(rawVal && rawVal.length > 0)
+    return IdValue(type = type, value = rawVal, available = available, limited = limited as Boolean?, raw = if (exposeRaw) {
+        rawVal
+    } else {
+        null
+    }
+    , message = message)
+}
+fun _getOaidNative(): String? {
+    try {
+        return DeviceIdNative.getOAIDOrNull()
+    }
+     catch (e: Throwable) {
+        return null
+    }
+}
+fun _getAppSetIdNative(): String? {
+    try {
+        return DeviceIdNative.getAppSetIdOrNull()
+    }
+     catch (e: Throwable) {
+        return null
+    }
+}
+fun _getAaidNative(): String? {
+    try {
+        return DeviceIdNative.getAdvertisingIdOrNull()
+    }
+     catch (e: Throwable) {
+        return null
+    }
+}
+fun _getAndroidIdNative(): String? {
+    try {
+        return DeviceIdNative.getAndroidIdOrNull()
+    }
+     catch (e: Throwable) {
+        return null
+    }
+}
+fun _getPseudoIdNative(): String? {
+    try {
+        return DeviceIdNative.getPseudoId()
+    }
+     catch (e: Throwable) {
+        return null
+    }
+}
 var _consent = false
-var _salt = ""
 var _cache: CacheType? = null
 val DEFAULT_ORDER = _uA(
     "oaid",
+    "appSetId",
     "androidId",
     "guid",
     "pseudoId",
     "aaid"
 )
-fun sha256HexSync(input: String): String {
-    var h1: Number = 0x811c9dc5
-    run {
-        var i: Number = 0
-        while(i < input.length){
-            h1 = h1 xor (input.charCodeAt(i) as Number)
-            h1 = (h1 + ((h1 shl 1) + (h1 shl 4) + (h1 shl 7) + (h1 shl 8) + (h1 shl 24))) or 0
-            i++
-        }
-    }
-    val hex = (h1 ushr 0).toString(16)
-    var outHex = hex
-    if ((hex.length % 2) == 1) {
-        outHex = ("0" + hex)
-    }
-    return outHex
-}
-fun buildSync(source: String, value: String?, exposeRaw: Boolean?, limited: Boolean?, msg: String?): IdValue {
-    val available = value != null
-    val out: UTSJSONObject = _uO("available" to available, "limited" to (limited === true), "source" to source)
-    if (msg != null) {
-        (out as UTSJSONObject)["message"] = msg
-    }
-    if (available) {
-        val h = sha256HexSync((value as String) + _salt)
-        (out as UTSJSONObject)["hash"] = h
-        val showRaw = (exposeRaw === true)
-        if (showRaw) {
-            (out as UTSJSONObject)["value"] = value as String
-        }
-    }
-    return out as IdValue
-}
 fun register(options: UTSJSONObject?): UTSPromise<UTSJSONObject> {
     return wrapUTSPromise(suspend w@{
             try {
-                DeviceIdentifier.register(UTSAndroid.getUniActivity()!!!!.getApplication()!!!! as Application)
+                DeviceIdNative.prefetchOaidAfterConsent()
             }
              catch (e: Throwable) {}
             _consent = true
@@ -242,12 +169,15 @@ fun register(options: UTSJSONObject?): UTSPromise<UTSJSONObject> {
     })
 }
 fun setSalt(salt: String): Unit {
-    _salt = salt
+    salt
 }
 fun getAndroidId(exposeRaw: Boolean = false): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
-            val v = getAndroidIdRaw()
-            return@w buildSync("androidId", v, exposeRaw, false, null)
+            val v = _getAndroidIdNative()
+            if (v != null && v.length > 0) {
+                return@w buildId("androidId", v, exposeRaw, false, null)
+            }
+            return@w buildId("androidId", null, exposeRaw, false, "unavailable")
     })
 }
 fun getGuid(exposeRaw: Boolean = false): UTSPromise<IdValue> {
@@ -257,21 +187,45 @@ fun getGuid(exposeRaw: Boolean = false): UTSPromise<IdValue> {
                 guid = "app:" + uuid4()
                 set("UNIIDKIT_GUID", guid)
             }
-            return@w buildSync("guid", guid as String, exposeRaw, false, null)
+            return@w buildId("guid", guid as String, exposeRaw, false, null)
     })
 }
 fun getOAID(): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
-            val ctx = UTSAndroid.getUniActivity()!!!!
-            val r = await(getOAIDRaw(ctx))
-            return@w buildSync("oaid", r.value ?: null, false, r.limited ?: null, r.message ?: null)
+            val v = _getOaidNative()
+            if (v != null && v.length > 0) {
+                return@w buildId("oaid", v, false, true, null)
+            }
+            return@w buildId("oaid", null, false, null, "unavailable")
     })
 }
 fun getAAID(): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
-            val ctx = UTSAndroid.getUniActivity()!!!!
-            val r = await(getAAIDRaw(ctx))
-            return@w buildSync("aaid", r.value ?: null, false, r.limited ?: null, r.message ?: null)
+            val v = _getAaidNative()
+            if (v != null && v.length > 0) {
+                return@w buildId("aaid", v, false, true, null)
+            }
+            return@w buildId("aaid", null, false, null, "unavailable")
+    })
+}
+fun getAppSetId(exposeRaw: Boolean = false): UTSPromise<IdValue> {
+    return wrapUTSPromise(suspend w@{
+            val v = _getAppSetIdNative()
+            return@w buildId("appSetId", v ?: null, exposeRaw, null, if (v) {
+                null
+            } else {
+                "unavailable"
+            }
+            )
+    })
+}
+fun getPseudoId(exposeRaw: Boolean = false): UTSPromise<IdValue> {
+    return wrapUTSPromise(suspend w@{
+            val v = _getPseudoIdNative()
+            if (v != null && v.length > 0) {
+                return@w buildId("pseudoId", v, exposeRaw, false, null)
+            }
+            return@w buildId("pseudoId", null, false, null, "unavailable")
     })
 }
 fun getIdCodes(options: UTSJSONObject?): UTSPromise<IdCodesResult> {
@@ -285,11 +239,15 @@ fun getIdCodes(options: UTSJSONObject?): UTSPromise<IdCodesResult> {
             }
             val res: IdCodesResult = IdCodesResult(consent = _consent, ts = Date.now())
             if (!_consent) {
-                res.guid = IdValue(available = false, source = "guid", message = "consent=false")
+                res.guid = buildId("guid", null, false, null, "consent=false")
+                _cache = CacheType(ts = Date.now(), data = res)
                 return@w res
             }
             if (include.indexOf("oaid") >= 0) {
                 res.oaid = await(getOAID())
+            }
+            if (include.indexOf("appSetId") >= 0) {
+                res.appSetId = await(getAppSetId(exposeRaw))
             }
             if (include.indexOf("androidId") >= 0) {
                 res.androidId = await(getAndroidId(exposeRaw))
@@ -301,11 +259,14 @@ fun getIdCodes(options: UTSJSONObject?): UTSPromise<IdCodesResult> {
                 res.guid = await(getGuid(exposeRaw))
             }
             if (include.indexOf("pseudoId") >= 0) {
-                res.pseudoId = buildSync("pseudoId", getPseudoIdRaw(), exposeRaw, false, null)
+                res.pseudoId = await(getPseudoId(exposeRaw))
             }
             fun pick(res: IdCodesResult, key: String): IdValue? {
                 if (key === "oaid") {
                     return (res.oaid ?: null)
+                }
+                if (key === "appSetId") {
+                    return (res.appSetId ?: null)
                 }
                 if (key === "androidId") {
                     return (res.androidId ?: null)
@@ -340,31 +301,34 @@ fun getIdCodes(options: UTSJSONObject?): UTSPromise<IdCodesResult> {
 }
 fun getBestId(options: UTSJSONObject?): UTSPromise<IdValue> {
     return wrapUTSPromise(suspend w@{
-            val prefer = (options?.getArray<String>("prefer") ?: DEFAULT_ORDER) as UTSArray<String>
+            val prefer = options?.getArray<String>("prefer") ?: DEFAULT_ORDER
             val exposeRaw = (options?.getBoolean("exposeRaw") === true)
             val args: UTSJSONObject = object : UTSJSONObject() {
-                var include = prefer as Any
+                var include = prefer
                 var exposeRaw = exposeRaw
             }
-            val r = await(getIdCodes(args))
-            if (r.best != null) {
-                val b = r.best as String
-                if (b === "oaid" && r.oaid != null) {
-                    return@w r.oaid as IdValue
+            val result = await(getIdCodes(args))
+            if (result.best != null) {
+                val bestIdTypeName = result.best!!
+                if (bestIdTypeName === "oaid" && result.oaid != null) {
+                    return@w result.oaid!!
                 }
-                if (b === "androidId" && r.androidId != null) {
-                    return@w r.androidId as IdValue
+                if (bestIdTypeName === "appSetId" && result.appSetId != null) {
+                    return@w result.appSetId!!
                 }
-                if (b === "guid" && r.guid != null) {
-                    return@w r.guid as IdValue
+                if (bestIdTypeName === "androidId" && result.androidId != null) {
+                    return@w result.androidId!!
                 }
-                if (b === "pseudoId" && r.pseudoId != null) {
-                    return@w r.pseudoId as IdValue
+                if (bestIdTypeName === "guid" && result.guid != null) {
+                    return@w result.guid!!
                 }
-                if (b === "aaid" && r.aaid != null) {
-                    return@w r.aaid as IdValue
+                if (bestIdTypeName === "pseudoId" && result.pseudoId != null) {
+                    return@w result.pseudoId!!
+                }
+                if (bestIdTypeName === "aaid" && result.aaid != null) {
+                    return@w result.aaid!!
                 }
             }
-            return@w IdValue(available = false, source = "none", message = "no id available")
+            return@w buildId("none", null, false, null, "no id available")
     })
 }
