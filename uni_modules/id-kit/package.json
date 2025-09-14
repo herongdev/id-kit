@@ -2,13 +2,14 @@
 	"id": "id-kit",
 	"displayName": "id-kit",
 	"version": "1.0.0",
-	"description": "id-kit",
+	"description": "UniApp X 设备标识聚合插件 - 支持OAID/AAID/Android ID/App Set ID/IDFA/IDFV等设备标识获取，内置隐私合规策略",
 	"keywords": [
-		"设备唯一广告标识符号,",
-		"device-id,",
-		"device-identifier,",
-		"device-fingerprint"
-	],
+        "获取设备唯一标识id",
+        "安卓设备ID",
+        "设备广告ID标识",
+        "设备指纹fingerprint",
+        "OAID/AAID/AndroidId/AppSetId"
+    ],
 	"repository": "",
 	"engines": {
 		"HBuilderX": "^3.6.8",
@@ -19,7 +20,7 @@
 		"type": "uts",
 		"sale": {
 			"regular": {
-				"price": "0.00"
+				"price": "8.00"
 			},
 			"sourcecode": {
 				"price": "0.00"

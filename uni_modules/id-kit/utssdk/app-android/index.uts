@@ -1,4 +1,3 @@
-import type { IdValue } from "../types.uts"
 import { DeviceIdNative } from "uts.sdk.modules.idKit"
 
 // 同意隐私：触发 OAID 预取，并把同意状态交给原生维护
