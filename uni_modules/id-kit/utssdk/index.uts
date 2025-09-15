@@ -1,11 +1,18 @@
-// #ifdef APP-ANDROID
-export * from "./app-android/index.uts";
-// #endif
+import { DeviceIdNative } from "uts.sdk.modules.idKit"
 
-// #ifdef APP-IOS
-export * from "./app-ios/index.uts";
-// #endif
+export async function register(options ?: UTSJSONObject) : Promise<UTSJSONObject> {
+	try { DeviceIdNative.prefetchOaidAfterConsent() } catch { }
+	try { DeviceIdNative.setConsent(true) } catch { }
+	return { consent: true } as UTSJSONObject
+}
 
-// #ifdef WEB
-export * from "./web/index.uts";
-// #endif
+export function setSalt(salt : string) : void {
+	try { DeviceIdNative.setSaltValue(salt || "") } catch { }
+}
+
+export async function getBestId(options ?: UTSJSONObject) : Promise<UTSJSONObject> {
+	const prefer = options?.getArray<string>("prefer")
+	const exposeRaw = options?.getBoolean("exposeRaw") ?? false
+	const json = DeviceIdNative.getBestId(prefer?.toTypedArray(), exposeRaw) as string
+	return JSON.parse(json) as UTSJSONObject
+}

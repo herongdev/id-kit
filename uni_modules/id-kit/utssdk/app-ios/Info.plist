@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- 复杂逻辑：ATT 弹窗文案，必须提供 -->
+    <key>NSUserTrackingUsageDescription</key>
+    <string>为提供更相关的内容与体验，我们希望使用设备广告标识（IDFA）。</string>
+  </dict>
+</plist>
